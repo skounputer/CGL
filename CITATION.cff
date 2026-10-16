@@ -22,7 +22,7 @@ authors:
   - family-names: Zuo
     given-names: Wangmeng
 preferred-citation:
-  type: generic
+  type: conference-paper
   title: 'CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning'
   authors:
     - family-names: Yao
@@ -42,5 +42,8 @@ preferred-citation:
     - family-names: Zuo
       given-names: Wangmeng
   year: 2026
-  doi: 10.48550/arXiv.2603.02951
-  url: https://arxiv.org/abs/2603.02951
+  collection-title: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)
+  month: 6
+  start: "15212"
+  end: "15221"
+  url: https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html

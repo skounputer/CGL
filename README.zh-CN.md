@@ -1,6 +1,6 @@
 # CGL
 
-[论文](https://arxiv.org/abs/2603.02951)：**CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning**。
+[论文](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html)：**CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning**。
 
 [English README](README.md) · [AndroidControl-CL 数据集](https://huggingface.co/datasets/Regimes/androidcontrol-cl)
 

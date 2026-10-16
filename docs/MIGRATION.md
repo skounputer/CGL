@@ -51,7 +51,7 @@ These fixes can affect optimization trajectories and must not be presented as ve
 
 Machine-specific working directories, dataset/checkpoint paths, unused diagnostics, debug tensor dumps, commented experiments, and unrelated document scaffolding are not included in the CGL integration. The launcher uses explicit environment variables and an AndroidControl validation file instead of the unrelated Geo3K validation path in the supplied script. The CGL configuration defaults to off for inherited upstream recipes; the new launcher turns it on.
 
-Apache-2.0, upstream notices, and existing source copyright headers are retained. New algorithm helpers carry a CGL contributor notice. Dataset and model licensing remains separate. See [the paper](https://arxiv.org/abs/2603.02951) and [the public dataset](https://huggingface.co/datasets/Regimes/androidcontrol-cl) for those artifacts.
+Apache-2.0, upstream notices, and existing source copyright headers are retained. New algorithm helpers carry a CGL contributor notice. Dataset and model licensing remains separate. See [the paper](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html) and [the public dataset](https://huggingface.co/datasets/Regimes/androidcontrol-cl) for those artifacts.
 
 ## Validation boundary
 

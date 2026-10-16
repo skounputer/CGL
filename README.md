@@ -2,7 +2,7 @@
 
 Code for **CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning**.
 
-[Paper](https://arxiv.org/abs/2603.02951) · [AndroidControl-CL dataset](https://huggingface.co/datasets/Regimes/androidcontrol-cl) · [中文说明](README.zh-CN.md)
+[Paper](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html) · [AndroidControl-CL dataset](https://huggingface.co/datasets/Regimes/androidcontrol-cl) · [中文说明](README.zh-CN.md)
 
 This initial code release integrates the supplied CGL research files into a matching verl backbone. CPU algorithm tests and configuration checks are provided. **End-to-end GPU/Ascend training and the paper's numerical results have not yet been revalidated for this assembled release.** Model weights, the initial SFT pipeline, and the complete evaluation pipeline are not included.
 
@@ -107,14 +107,14 @@ These checks cover algorithm kernels, reward parsing, and corrected-batch assemb
 ## Citation and license
 
 ```bibtex
-@misc{yao2026cgl,
+@InProceedings{Yao_2026_CVPR,
+  author={Yao, Zhenquan and Huang, Zitong and Zeng, Yihan and Han, Jianhua and Xu, Hang and Feng, Chun-Mei and Ma, Jianwei and Zuo, Wangmeng},
   title={CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning},
-  author={Zhenquan Yao and Zitong Huang and Yihan Zeng and Jianhua Han and Hang Xu and Chun-Mei Feng and Jianwei Ma and Wangmeng Zuo},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  month={June},
   year={2026},
-  eprint={2603.02951},
-  archivePrefix={arXiv},
-  primaryClass={cs.LG},
-  url={https://arxiv.org/abs/2603.02951}
+  pages={15212-15221},
+  url={https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html}
 }
 ```
 
