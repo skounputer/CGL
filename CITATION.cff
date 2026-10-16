@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: Please cite the CGL paper when using this research code.
+type: software
+title: CGL research code
+license: Apache-2.0
+repository-code: https://github.com/skounputer/CGL
+authors:
+  - family-names: Yao
+    given-names: Zhenquan
+  - family-names: Huang
+    given-names: Zitong
+  - family-names: Zeng
+    given-names: Yihan
+  - family-names: Han
+    given-names: Jianhua
+  - family-names: Xu
+    given-names: Hang
+  - family-names: Feng
+    given-names: Chun-Mei
+  - family-names: Ma
+    given-names: Jianwei
+  - family-names: Zuo
+    given-names: Wangmeng
+preferred-citation:
+  type: generic
+  title: 'CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning'
+  authors:
+    - family-names: Yao
+      given-names: Zhenquan
+    - family-names: Huang
+      given-names: Zitong
+    - family-names: Zeng
+      given-names: Yihan
+    - family-names: Han
+      given-names: Jianhua
+    - family-names: Xu
+      given-names: Hang
+    - family-names: Feng
+      given-names: Chun-Mei
+    - family-names: Ma
+      given-names: Jianwei
+    - family-names: Zuo
+      given-names: Wangmeng
+  year: 2026
+  doi: 10.48550/arXiv.2603.02951
+  url: https://arxiv.org/abs/2603.02951

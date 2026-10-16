@@ -1,0 +1,32 @@
+{
+  "upstream_url": "https://github.com/verl-project/verl",
+  "baseline_commit": "3f929af747777f43041b8c6c56da26c909842e27",
+  "baseline_version": "0.4.1.dev",
+  "basis": "Compatible reconstruction; original Git HEAD unavailable",
+  "inputs": [
+    {
+      "name": "actor.yaml",
+      "sha256": "f8cc49a58e6a4de9202aec935ed531476b308ba557bd107b530fc0fa02b66fa4"
+    },
+    {
+      "name": "core_algos.tex",
+      "sha256": "1ed4734bc173e2d11bc38cc49da03b365feb058bf7f2cc8ea39a0a7f617f8c78"
+    },
+    {
+      "name": "dpactor.tex",
+      "sha256": "9052ec976524d32cce607276e46dd409dec12f87a648fcc1846b86288eb70da3"
+    },
+    {
+      "name": "ray_trainer.tex",
+      "sha256": "e84aa8d16ee4742e4eabd58d27ce87f1603b7b418ddde7dbadaca30f3f1840c8"
+    },
+    {
+      "name": "andriod_control_reward.tex",
+      "sha256": "fb97887407996cf6ef372ca084673bb0b5835a39aa15bfe8059bf9e10147c773"
+    },
+    {
+      "name": "nlinear.tex",
+      "sha256": "db83b4f287b31aa565abc3aea1be93c87aa47d53363e3782a7dd60b5eedfba90"
+    }
+  ]
+}

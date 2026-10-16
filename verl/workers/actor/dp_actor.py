@@ -12,6 +12,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
+# Modified for CGL (2026): CGL supervised backward pass and gradient projection.
 # limitations under the License.
 """
 Single Process Actor
@@ -28,7 +29,14 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 
 import verl.utils.torch_functional as verl_F
 from verl import DataProto
-from verl.trainer.ppo.core_algos import agg_loss, compute_policy_loss, get_policy_loss_fn, kl_penalty
+from verl.trainer.ppo.cgl import combine_gradients, entropy_weight
+from verl.trainer.ppo.core_algos import (
+    agg_loss,
+    compute_policy_loss,
+    compute_policy_loss_sft,
+    get_policy_loss_fn,
+    kl_penalty,
+)
 from verl.utils.device import get_device_id, get_device_name, is_cuda_available, is_npu_available
 from verl.utils.fsdp_utils import FSDPModule, fsdp2_clip_grad_norm_
 from verl.utils.profiler import GPUMemoryLogger
@@ -380,11 +388,16 @@ class DataParallelPPOActor(BasePPOActor):
 
     @GPUMemoryLogger(role="dp actor", logger=logger)
     def update_policy(self, data: DataProto):
-        # make sure we are in training mode
         self.actor_module.train()
 
         temperature = data.meta_info["temperature"]  # temperature must be in the data.meta_info to avoid silent error
-
+        cgl_enabled = self.config.sft_grpo_loss
+        projection_enabled = cgl_enabled and not self.config.sft_grpo_loss_add_linear
+        if cgl_enabled and self.config.policy_loss.loss_mode != "vanilla":
+            raise ValueError("CGL currently supports policy_loss.loss_mode=vanilla only")
+        step_now = data.meta_info.get("step_now", 0)
+        entropy_now = data.meta_info.get("entropy_now", 0.0)
+        mu = entropy_weight(step_now, entropy_now) if self.config.sft_grpo_mu else 1.0
         select_keys = [
             "responses",
             "response_mask",
@@ -396,11 +409,15 @@ class DataParallelPPOActor(BasePPOActor):
         ]
         if self.config.use_kl_loss:
             select_keys.append("ref_log_prob")
+        if self.config.sft_grpo_loss:
+            select_keys.append("sft_loss_mask")
+            select_keys.append("new_input_ids")
+            select_keys.append("new_attention_mask")
+            select_keys.append("responses_new")
+            select_keys.append("new_position_ids")
         batch = data.select(batch_keys=select_keys).batch
         has_multi_modal_inputs = "multi_modal_inputs" in data.non_tensor_batch.keys()
 
-        # Split to make minibatch iterator for updating the actor
-        # See PPO paper for details. https://arxiv.org/abs/1707.06347
         if has_multi_modal_inputs:
             num_mini_batches = data.batch.batch_size[0] // self.config.ppo_mini_batch_size
             non_tensor_select_keys = ["multi_modal_inputs"]
@@ -411,7 +428,6 @@ class DataParallelPPOActor(BasePPOActor):
         metrics = {}
         for epoch in range(self.config.ppo_epochs):
             for batch_idx, data in enumerate(dataloader):
-                # split batch into micro_batches
                 mini_batch = data
                 if has_multi_modal_inputs:
                     micro_batches = []
@@ -446,15 +462,14 @@ class DataParallelPPOActor(BasePPOActor):
                     self.gradient_accumulation = (
                         self.config.ppo_mini_batch_size // self.config.ppo_micro_batch_size_per_gpu
                     )
-                    # split batch into micro_batches
                     micro_batches = mini_batch.split(self.config.ppo_micro_batch_size_per_gpu)
 
                 self.actor_optimizer.zero_grad()
-
+                if projection_enabled:
+                    policy_grads = {}
                 for data in micro_batches:
                     micro_batch_metrics = {}
 
-                    # Support all hardwares
                     if isinstance(data, DataProto):
                         data = {**data.batch.to(get_device_id()), **data.non_tensor_batch}
                     elif isinstance(data, dict):
@@ -484,7 +499,6 @@ class DataParallelPPOActor(BasePPOActor):
                     entropy_coeff = self.config.entropy_coeff
                     loss_agg_mode = self.config.loss_agg_mode
 
-                    # all return: (bsz, response_length)
                     calculate_entropy = False
                     if entropy_coeff != 0:
                         calculate_entropy = True
@@ -513,7 +527,7 @@ class DataParallelPPOActor(BasePPOActor):
                             old_log_prob=old_log_prob,
                             log_prob=log_prob,
                             advantages=advantages,
-                            response_mask=advantages,
+                            response_mask=response_mask,
                             loss_agg_mode=loss_agg_mode,
                             config=self.config,
                         )
@@ -521,14 +535,12 @@ class DataParallelPPOActor(BasePPOActor):
                     if entropy_coeff != 0:
                         entropy_loss = agg_loss(loss_mat=entropy, loss_mask=response_mask, loss_agg_mode=loss_agg_mode)
 
-                        # compute policy loss
                         policy_loss = pg_loss - entropy_loss * entropy_coeff
                     else:
                         policy_loss = pg_loss
 
                     if self.config.use_kl_loss:
                         ref_log_prob = data["ref_log_prob"]
-                        # compute kl loss
                         kld = kl_penalty(
                             logprob=log_prob, ref_logprob=ref_log_prob, kl_penalty=self.config.kl_loss_type
                         )
@@ -539,12 +551,11 @@ class DataParallelPPOActor(BasePPOActor):
                         micro_batch_metrics["actor/kl_coef"] = self.config.kl_loss_coef
 
                     if self.config.use_dynamic_bsz:
-                        # relative to the dynamic bsz
-                        loss = policy_loss * (len(data) / self.config.ppo_mini_batch_size)
+                        loss = policy_loss * (data["responses"].shape[0] / self.config.ppo_mini_batch_size)
                     else:
                         loss = policy_loss / self.gradient_accumulation
-                    loss.backward()
 
+                    loss.backward()
                     micro_batch_metrics.update(
                         {
                             "actor/pg_loss": pg_loss.detach().item(),
@@ -554,7 +565,62 @@ class DataParallelPPOActor(BasePPOActor):
                         }
                     )
                     append_to_dict(metrics, micro_batch_metrics)
-
+                if projection_enabled:
+                    for name, param in self.actor_module.named_parameters():
+                        param_grad = param.grad
+                        if param_grad is not None:
+                            policy_grads[name] = param_grad.clone()
+                        else:
+                            policy_grads[name] = None
+                    self.actor_optimizer.zero_grad()
+                if cgl_enabled:
+                    for data in micro_batches:
+                        if isinstance(data, DataProto):
+                            data = {**data.batch.to(get_device_id()), **data.non_tensor_batch}
+                        elif isinstance(data, dict):
+                            data = {
+                                key: value.to(get_device_id()) if isinstance(value, torch.Tensor) else value
+                                for key, value in data.items()
+                            }
+                            if data.get("multi_modal_inputs") is not None:
+                                data["multi_modal_inputs"] = [
+                                    {key: value.to(get_device_id()) for key, value in item.items()}
+                                    for item in data["multi_modal_inputs"]
+                                ]
+                        else:
+                            data = data.to(get_device_id())
+                        corrected = dict(data)
+                        corrected["attention_mask"] = data["new_attention_mask"]
+                        corrected["input_ids"] = data["new_input_ids"]
+                        corrected["responses"] = data["responses_new"]
+                        corrected["position_ids"] = data["new_position_ids"]
+                        response_length = corrected["responses"].shape[-1]
+                        response_mask_new = corrected["attention_mask"][:, -response_length:]
+                        _, log_prob_sft = self._forward_micro_batch(
+                            micro_batch=corrected, temperature=temperature, calculate_entropy=False
+                        )
+                        sft_loss = compute_policy_loss_sft(
+                            log_prob_sft=log_prob_sft,
+                            sft_loss_mask=data["sft_loss_mask"],
+                            response_mask_new=response_mask_new,
+                        )
+                        if self.config.use_dynamic_bsz:
+                            sft_loss = sft_loss * (data["responses"].shape[0] / self.config.ppo_mini_batch_size)
+                        else:
+                            sft_loss = sft_loss / self.gradient_accumulation
+                        sft_loss = sft_loss * mu
+                        sft_loss.backward()
+                        append_to_dict(
+                            metrics,
+                            {
+                                "actor/sft_loss": sft_loss.detach().item(),
+                                "actor/mu_value": mu,
+                            },
+                        )
+                if projection_enabled:
+                    for name, param in self.actor_module.named_parameters():
+                        if param.requires_grad:
+                            param.grad = combine_gradients(param.grad, policy_grads.get(name))
                 grad_norm = self._optimizer_step()
                 mini_batch_metrics = {"actor/grad_norm": grad_norm.detach().item()}
                 append_to_dict(metrics, mini_batch_metrics)

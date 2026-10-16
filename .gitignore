@@ -124,3 +124,18 @@ logs
 log
 outputs
 .history
+
+# CGL local data, checkpoints, credentials, and generated artifacts
+/data/
+/models/
+/rollout/
+/tensorboard/
+.env.*
+!.env.example
+*.safetensors
+*.bin
+*.pem
+*.key
+.pytest_cache/
+.ruff_cache/
+/release/

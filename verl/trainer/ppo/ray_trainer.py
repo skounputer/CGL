@@ -12,6 +12,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
+# Modified for CGL (2026): CGL routing and corrected-response preparation.
 # limitations under the License.
 """
 FSDP PPO Trainer with Ray-based single controller.
@@ -43,6 +44,7 @@ from verl.single_controller.ray import RayClassWithInitArgs, RayResourcePool, Ra
 from verl.single_controller.ray.base import create_colocated_worker_cls
 from verl.trainer.config import AlgoConfig
 from verl.trainer.ppo import core_algos
+from verl.trainer.ppo.cgl import prepare_supervised_batch
 from verl.trainer.ppo.core_algos import AdvantageEstimator, agg_loss
 from verl.trainer.ppo.metric_utils import (
     compute_data_metrics,
@@ -372,6 +374,13 @@ class RayPPOTrainer:
         self._create_dataloader(train_dataset, val_dataset, collate_fn, train_sampler)
 
     def _validate_config(self):
+        if self.config.actor_rollout_ref.actor.get("sft_grpo_loss", False):
+            if self.config.reward_model.launch_reward_fn_async:
+                raise ValueError("CGL requires reward_model.launch_reward_fn_async=False")
+            if self.config.actor_rollout_ref.actor.strategy not in ("fsdp", "fsdp2"):
+                raise ValueError("CGL is implemented for the FSDP actor only")
+            if self.config.actor_rollout_ref.actor.policy_loss.loss_mode != "vanilla":
+                raise ValueError("CGL supports policy_loss.loss_mode=vanilla only")
         config = self.config
         # number of GPUs total
         n_gpus = config.trainer.n_gpus_per_node * config.trainer.nnodes
@@ -1179,6 +1188,12 @@ class RayPPOTrainer:
                         else:
                             reward_tensor, reward_extra_infos_dict = compute_reward(batch, self.reward_fn)
 
+                    if self.config.actor_rollout_ref.actor.get("sft_grpo_loss", False):
+                        prepare_supervised_batch(
+                            batch, reward_tensor, self.tokenizer, self.config.actor_rollout_ref.actor
+                        )
+                        batch.meta_info["step_now"] = self.global_steps
+
                     # recompute old_log_probs
                     with marked_timer("old_log_prob", timing_raw, color="blue"):
                         old_log_prob = self.actor_rollout_wg.compute_log_prob(batch)
@@ -1187,6 +1202,7 @@ class RayPPOTrainer:
                         loss_agg_mode = self.config.actor_rollout_ref.actor.loss_agg_mode
                         entropy_agg = agg_loss(loss_mat=entropys, loss_mask=response_masks, loss_agg_mode=loss_agg_mode)
                         old_log_prob_metrics = {"actor/entropy": entropy_agg.detach().item()}
+                        batch.meta_info["entropy_now"] = entropy_agg.detach().item()
                         metrics.update(old_log_prob_metrics)
                         old_log_prob.batch.pop("entropys")
                         batch = batch.union(old_log_prob)
@@ -1285,7 +1301,6 @@ class RayPPOTrainer:
                     rollout_data_dir = self.config.trainer.get("rollout_data_dir", None)
                     if rollout_data_dir:
                         with marked_timer("dump_rollout_generations", timing_raw, color="green"):
-                            print(batch.batch.keys())
                             inputs = self.tokenizer.batch_decode(batch.batch["prompts"], skip_special_tokens=True)
                             outputs = self.tokenizer.batch_decode(batch.batch["responses"], skip_special_tokens=True)
                             scores = batch.batch["token_level_scores"].sum(-1).cpu().tolist()

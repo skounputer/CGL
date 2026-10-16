@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Modified for CGL (2026): CGL supervised-loss entry points.
 """
 Core functions to implement PPO algorithms.
 The function implemented in this file should be used by trainer with different distributed strategies to
@@ -29,6 +30,7 @@ import torch
 
 import verl.utils.torch_functional as verl_F
 from verl.trainer.config import AlgoConfig
+from verl.trainer.ppo.cgl import supervised_loss
 
 POLICY_LOSS_REGISTRY = {}
 
@@ -1089,3 +1091,37 @@ def compute_pf_ppo_reweight_data(
     resampled_data.meta_info = resampled_meta_info
 
     return resampled_data
+
+
+def compute_policy_loss_sft(log_prob_sft, sft_loss_mask, response_mask_new):
+    """CGL supervised objective over the selected corrected responses."""
+    return supervised_loss(log_prob_sft, sft_loss_mask, response_mask_new)
+
+
+def compute_policy_loss_sft_grpo(
+    old_log_prob,
+    log_prob,
+    log_prob_sft,
+    sft_loss_mask,
+    advantages,
+    response_mask,
+    response_mask_new,
+    cliprange=None,
+    cliprange_low=None,
+    cliprange_high=None,
+    clip_ratio_c=3.0,
+    loss_agg_mode="token-mean",
+):
+    """Compatibility wrapper for the combined loss API in the supplied code."""
+    policy = compute_policy_loss(
+        old_log_prob=old_log_prob,
+        log_prob=log_prob,
+        advantages=advantages,
+        response_mask=response_mask,
+        cliprange=cliprange,
+        cliprange_low=cliprange_low,
+        cliprange_high=cliprange_high,
+        clip_ratio_c=clip_ratio_c,
+        loss_agg_mode=loss_agg_mode,
+    )
+    return (*policy, compute_policy_loss_sft(log_prob_sft, sft_loss_mask, response_mask_new))

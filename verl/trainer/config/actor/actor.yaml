@@ -1,3 +1,4 @@
+# Modified for CGL (2026): supervised-loss and routing options.
 # Format checks enforced on CI:
 # 1. Comments must appear above each field.
 # 2. There must be a blank line between each field.
@@ -10,6 +11,21 @@ strategy: ???
 
 # Split each sample into sub-batches of this size for PPO
 ppo_mini_batch_size: 256
+
+# Enable CGL's corrected-response supervised branch.
+sft_grpo_loss: false
+
+# Add gradients directly; false enables parameter-wise conflict projection.
+sft_grpo_loss_add_linear: true
+
+# Apply the entropy-dependent supervised loss weight.
+sft_grpo_mu: false
+
+# paper uses full-reward routing; legacy_nonzero preserves the old threshold.
+sft_grpo_routing: paper
+
+# Maximum action reward used to identify a successful rollout group.
+sft_grpo_success_reward: 2.0
 
 # [Deprecated] Global micro batch size
 ppo_micro_batch_size: null

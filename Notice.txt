@@ -1,1 +1,7 @@
-Copyright 2023-2024 Bytedance Ltd. and/or its affiliates 
+Copyright 2023-2024 Bytedance Ltd. and/or its affiliates
+
+This distribution includes CGL modifications to the verl training framework.
+CGL additions and modifications: Copyright 2026 CGL contributors.
+The upstream source snapshot is derived from verl commit
+3f929af747777f43041b8c6c56da26c909842e27.
+See docs/MIGRATION.md for source provenance and modification details.
