@@ -10,7 +10,7 @@
 
 ## 训练入口
 
-原脚本使用八张 Ascend NPU、vLLM、Qwen-VL 类模型。需先准备兼容的 CANN、torch-npu、vllm-ascend 环境；原始环境的精确版本未知。环境安装、数据字段和可调整参数见 [英文说明](README.md)。
+原始实验使用八张 Ascend NPU、vLLM 0.7 系列（约 0.7.0）和 Qwen-VL 类模型。安装时使用配套的 CANN、PyTorch/torch-npu 和 vllm-ascend 环境，并按 `requirements-npu.txt` 安装项目依赖。环境安装、数据字段和可调整参数见 [英文说明](README.md)。
 
 ```bash
 export TRAIN_FILES=/你的数据目录/productivity_train.parquet

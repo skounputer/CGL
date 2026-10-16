@@ -22,7 +22,7 @@ CGL is wired into the **FSDP actor with vanilla policy loss and synchronous rewa
 
 ## Environment
 
-Use a Linux GPU or Ascend training environment compatible with this historical verl version. Python 3.10 is the recommended starting point. The original launch file used **Ascend NPU, vLLM, and eight devices**. Its exact CANN, driver, torch-npu, and vllm-ascend versions were not supplied; the files here do not constitute a verified environment lock.
+The original experiments used **eight Ascend NPUs with a vLLM 0.7-series stack (approximately v0.7.0)**. Use a compatible CANN, PyTorch/torch-npu, and vllm-ascend environment. Python 3.10 is the recommended starting point.
 
 For the original Ascend path, first install the matching PyTorch/torch-npu, CANN, and vllm-ascend stack. Then, inside that environment:
 
@@ -32,7 +32,7 @@ pip install tensorboard
 pip install -e . --no-deps
 ```
 
-`requirements-npu.txt` and the CUDA files are inherited upstream dependency recipes. Several dependencies are unpinned. Export and retain the resolved environment after a successful hardware smoke test. CUDA users should start with the [upstream installation instructions](README.verl.md) for this historical version, then use `DEVICE=cuda` with the CGL launcher.
+Use `requirements-npu.txt` for the Ascend installation path. The inherited `[vllm]` package extra and CUDA dependency recipes target upstream CUDA installations. CUDA users should start with the [upstream installation instructions](README.verl.md) for this historical version, then use `DEVICE=cuda` with the CGL launcher.
 
 Install **this checkout** as the `verl` package; do not separately install a current PyPI verl into the same environment.
 
