@@ -1,51 +1,111 @@
-# CGL
+<div align="center">
 
-[论文](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html)：**CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning**。
+# CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning
 
-[English README](README.md) · [AndroidControl-CL 数据集](https://huggingface.co/datasets/Regimes/androidcontrol-cl)
+### CVPR 2026
 
-这是根据研究代码片段整理的首版开源代码，包含完整的历史 verl 底座、CGL 算法接入、AndroidControl 奖励函数、训练入口和 CPU 测试。**当前整理版本尚未经过完整 GPU／Ascend 训练复验，不能视为论文数值结果已复现。** 初始 SFT 流水线、模型权重、完整评测程序和权威任务顺序文件尚未包含。
+<a href="https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html"><img src="https://img.shields.io/badge/Paper-CVPR%202026-b31b1b" alt="CVPR 2026 论文"></a>
+<a href="https://huggingface.co/datasets/Regimes/androidcontrol-cl"><img src="https://img.shields.io/badge/Dataset-%F0%9F%A4%97%20AndroidControl--CL-yellow" alt="AndroidControl-CL 数据集"></a>
+<a href="https://github.com/skounputer/CGL"><img src="https://img.shields.io/badge/Code-GitHub-black?logo=github" alt="代码"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="Apache 2.0"></a>
 
-底座固定为 2025-07-07 的 verl 提交 `3f929af747777f43041b8c6c56da26c909842e27`，版本文件是 `0.4.1.dev`。这是与所给文件高度匹配的重建底座；缺少原始 Git 历史，因此无法证明原实验 checkout 的 HEAD 正好是这个提交。本版没有迁移到最新 verl。
+[English](README.md) | [中文](README.zh-CN.md)
 
-## 训练入口
+</div>
 
-原始实验使用八张 Ascend NPU、vLLM 0.7.0 和 Qwen-VL 类模型。安装时使用配套的 CANN、PyTorch/torch-npu 和 vllm-ascend 环境，并按 `requirements-npu.txt` 安装项目依赖。环境安装、数据字段和可调整参数见 [英文说明](README.md)。
+## 项目介绍
+
+**CGL** 面向 GUI 智能体的持续学习：在学习新应用领域的同时，保留已掌握的交互技能。方法结合监督微调的适应效率和强化学习的知识保持能力，包含三个模块：
+
+1. **错误感知路由**：同一目标的一组采样均未达到满分时，引入纠正回答的监督学习。
+2. **熵调控训练**：根据策略熵调整监督损失权重。
+3. **条件梯度手术**：以 GRPO 更新为参照，对冲突的监督梯度进行投影。
+
+我们同时提出 **AndroidControl-CL**，将 Android GUI 交互划分为七类应用任务，用于顺序训练和持续学习评测。
+
+## 项目动态
+
+- **[2026.10.16]** 训练代码与启动脚本已发布。AndroidControl-CL 数据集可在 [Hugging Face](https://huggingface.co/datasets/Regimes/androidcontrol-cl) 下载。
+- **[CVPR 2026]** [会议论文](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html)已公开。
+
+## 数据集
+
+[AndroidControl-CL](https://huggingface.co/datasets/Regimes/androidcontrol-cl) 包含截图、任务标注，以及按应用类别划分的训练／测试文件。
+
+| 任务类别 | Parquet 文件名前缀 |
+| --- | --- |
+| 购物 | `shopping` |
+| 生产力与办公 | `productivity` |
+| 通信 | `communication` |
+| 出行与交通 | `travel_and_local` |
+| 系统工具 | `tools` |
+| 教育与科学 | `education` |
+| 生活与娱乐 | `entertainment` |
+
+从数据仓库的 `parquet_convert/` 下载当前任务对应文件，例如 `productivity_train.parquet` 和 `productivity_test.parquet`。输入字段与动作格式见[训练说明](docs/TRAINING.md#data-and-training)。
+
+## 环境安装
+
+原始实验使用 **8 张 Ascend NPU 和 vLLM 0.7.0**。准备配套的 CANN、PyTorch/torch-npu、vllm-ascend 环境后安装：
 
 ```bash
-export TRAIN_FILES=/你的数据目录/productivity_train.parquet
-export VAL_FILES=/你的数据目录/productivity_test.parquet
-export MODEL_PATH=/你的模型目录/上一任务的HF格式模型
+git clone https://github.com/skounputer/CGL.git
+cd CGL
+pip install -r requirements-npu.txt
+pip install tensorboard
+pip install -e . --no-deps
+```
 
-# 仅查看命令。
-DRY_RUN=1 bash scripts/train_cgl.sh
+本仓库包含 verl `0.4.1.dev` 底座。Ascend 环境使用 `requirements-npu.txt`，继承的 `[vllm]` 安装选项面向 CUDA。更多配置见[训练说明](docs/TRAINING.md)。
 
-# 在已配置的 Ascend 环境中训练一个任务。
+## 训练
+
+设置当前任务的数据，以及初始或上一任务的 Hugging Face 模型路径：
+
+```bash
+export TRAIN_FILES=/path/to/productivity_train.parquet
+export VAL_FILES=/path/to/productivity_test.parquet
+export MODEL_PATH=/path/to/previous_task_hf_checkpoint
+
 bash scripts/train_cgl.sh
 ```
 
-一个任务训练完成后，需要将 actor checkpoint 导出成 Hugging Face 模型，再作为下一任务的 `MODEL_PATH`。不要直接把 FSDP 分片目录当作 HF 模型路径。数据和权重不进入 Git。
+使用 `DRY_RUN=1 bash scripts/train_cgl.sh` 查看命令。持续学习按任务依次执行：完成一个任务后，将 actor checkpoint 导出成 Hugging Face 模型，再作为下一任务的 `MODEL_PATH`。转换命令见[训练说明](docs/TRAINING.md#data-and-training)。
 
-## 方法开关
+### 消融配置
 
-| 配置 | 含义 |
+| 设置 | 追加到训练命令的参数 |
 | --- | --- |
-| `sft_grpo_loss=True` | 启用纠正回答的监督分支 |
-| `sft_grpo_mu=True` | 使用原代码中的熵权重调度 |
-| `sft_grpo_loss_add_linear=False` | 对冲突梯度做投影；True 为直接相加消融 |
-| `sft_grpo_routing=paper` | 同一 prompt 的所有采样都未达到满分 2 时触发监督 |
+| CGL | 启动脚本默认配置 |
+| 梯度直接相加 | `actor_rollout_ref.actor.sft_grpo_loss_add_linear=True` |
+| 固定监督权重 | `actor_rollout_ref.actor.sft_grpo_mu=False` |
+| 仅 GRPO | `actor_rollout_ref.actor.sft_grpo_loss=False` |
 
-接入范围是 FSDP actor、vanilla policy loss、同步奖励。保留原实现的逐参数／局部分片投影，并不等价于对全模型分布式梯度做一次全局投影。FSDP2 等继承后端还需硬件验证。
-
-整理过程中修复了奖励回调接口不匹配、首列奖励索引、batch 重排后的分组、纠正序列位置与 padding、截断示范、动态 microbatch 样本计数，以及关闭 SFT 时误清空策略梯度的问题。默认路由与论文一致；可用 `CGL_ROUTING=legacy_nonzero` 保留旧的“非零奖励”阈值，但不会恢复原索引错误。详见 [迁移记录](docs/MIGRATION.md)。这些变化可能影响旧实验的训练轨迹。
-
-## CPU 验证
+## 复现与验证
 
 ```bash
 pip install -r requirements-cgl-test.txt
 pytest -q tests/cgl
-python -m compileall -q verl
-bash -n scripts/train_cgl.sh
 ```
 
-CPU 测试不替代 GPU／NPU、分布式和完整训练验证。引用信息见 [CITATION.cff](CITATION.cff)，代码采用 [Apache-2.0](LICENSE)，保留上游版权和声明；数据与模型的许可单独适用。
+CPU 测试覆盖路由、损失、梯度更新、奖励回调和配置。当前发布版的完整 NPU 训练复验仍待完成；初始 SFT、模型权重及完整评测流程不包含在本仓库中。详见[验证记录](docs/VALIDATION.md)和[实现改动](docs/MIGRATION.md)。
+
+## 引用
+
+使用 CGL 或 AndroidControl-CL 时，请引用论文：
+
+```bibtex
+@InProceedings{Yao_2026_CVPR,
+  author={Yao, Zhenquan and Huang, Zitong and Zeng, Yihan and Han, Jianhua and Xu, Hang and Feng, Chun-Mei and Ma, Jianwei and Zuo, Wangmeng},
+  title={CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning},
+  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  month={June},
+  year={2026},
+  pages={15212-15221},
+  url={https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html}
+}
+```
+
+## 致谢与许可
+
+训练框架基于 [verl / HybridFlow](https://github.com/verl-project/verl)。代码采用 [Apache-2.0](LICENSE)，保留上游[版权声明](Notice.txt)；数据与模型的许可单独适用。

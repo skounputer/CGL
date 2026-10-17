@@ -1,110 +1,104 @@
-# CGL
+<div align="center">
 
-Code for **CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning**.
+# CGL: Advancing Continual GUI Learning via Reinforcement Fine-Tuning
 
-[Paper](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html) · [AndroidControl-CL dataset](https://huggingface.co/datasets/Regimes/androidcontrol-cl) · [中文说明](README.zh-CN.md)
+### CVPR 2026
 
-This initial code release integrates the supplied CGL research files into a matching verl backbone. CPU algorithm tests and configuration checks are provided. **End-to-end GPU/Ascend training and the paper's numerical results have not yet been revalidated for this assembled release.** Model weights, the initial SFT pipeline, and the complete evaluation pipeline are not included.
+<a href="https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html"><img src="https://img.shields.io/badge/Paper-CVPR%202026-b31b1b" alt="CVPR 2026 paper"></a>
+<a href="https://huggingface.co/datasets/Regimes/androidcontrol-cl"><img src="https://img.shields.io/badge/Dataset-%F0%9F%A4%97%20AndroidControl--CL-yellow" alt="AndroidControl-CL on Hugging Face"></a>
+<a href="https://github.com/skounputer/CGL"><img src="https://img.shields.io/badge/Code-GitHub-black?logo=github" alt="Code"></a>
+<a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="Apache 2.0 license"></a>
 
-CGL combines a GRPO policy update with corrected-response supervision, an entropy-dependent supervision weight, and conditional gradient projection. The implementation retains the original three switches:
+[English](README.md) | [中文](README.zh-CN.md)
 
-| Actor option | Meaning | CGL launcher |
-| --- | --- | --- |
-| `sft_grpo_loss` | Enable corrected-response supervision | `True` |
-| `sft_grpo_mu` | Apply entropy-dependent SFT weighting | `True` |
-| `sft_grpo_loss_add_linear` | Add gradients directly; `False` enables conflict projection | `False` |
+</div>
 
-## Version and scope
+## Overview
 
-The backbone is pinned to [verl commit `3f929af747777f43041b8c6c56da26c909842e27`](https://github.com/verl-project/verl/commit/3f929af747777f43041b8c6c56da26c909842e27), dated July 7, 2025; its version file reads **`0.4.1.dev`**. This is a matching reconstruction baseline, not proof of the missing original checkout's exact HEAD. It is not a port to current verl. Upstream package sources, examples, and tests are retained; see [the original README](README.verl.md).
+**CGL** studies continual learning for GUI agents: adapting to new application domains while retaining previously acquired interaction skills. It brings together the adaptation efficiency of supervised fine-tuning and the retention behavior of reinforcement learning through three components:
 
-CGL is wired into the **FSDP actor with vanilla policy loss and synchronous rewards**. Megatron and asynchronous reward execution are rejected when CGL is enabled. Projection follows the supplied implementation's **local, parameter/shard-wise** rule; it is not a distributed projection over one global model gradient vector. FSDP2 and other inherited upstream backends still need hardware validation.
+1. **Error-Aware Routing:** introduce corrected-response supervision when a rollout group fails to reach the full action reward.
+2. **Entropy-Regulated Tuning:** adjust the supervised objective's weight using policy entropy.
+3. **Conditional Gradient Surgery:** project conflicting supervised gradients relative to the GRPO update.
 
-## Environment
+We also introduce **AndroidControl-CL**, a benchmark that organizes Android GUI interactions into seven application categories for sequential training and evaluation.
 
-The original experiments used **eight Ascend NPUs with vLLM 0.7.0**. Use a compatible CANN, PyTorch/torch-npu, and vllm-ascend environment. Python 3.10 is the recommended starting point.
+## News
 
-For the original Ascend path, first install the matching PyTorch/torch-npu, CANN, and vllm-ascend stack. Then, inside that environment:
+- **[2026.10.16]** CGL training code and launch scripts are available. Access AndroidControl-CL on [Hugging Face](https://huggingface.co/datasets/Regimes/androidcontrol-cl).
+- **[CVPR 2026]** Read the [conference paper](https://openaccess.thecvf.com/content/CVPR2026/html/Yao_CGL_Advancing_Continual_GUI_Learning_via_Reinforcement_Fine-Tuning_CVPR_2026_paper.html).
+
+## Dataset
+
+The [AndroidControl-CL dataset](https://huggingface.co/datasets/Regimes/androidcontrol-cl) includes screenshots, task annotations, and category-specific training/test files.
+
+| Task category | Parquet filename prefix |
+| --- | --- |
+| Shopping | `shopping` |
+| Productivity and Office | `productivity` |
+| Communication | `communication` |
+| Travel and Transportation | `travel_and_local` |
+| System Tools | `tools` |
+| Education and Science | `education` |
+| Life and Entertainment | `entertainment` |
+
+Download the files for the current task from `parquet_convert/`, for example `productivity_train.parquet` and `productivity_test.parquet`. See [training notes](docs/TRAINING.md#data-and-training) for the input schema and supported actions.
+
+## Installation
+
+The original experiments use **8 Ascend NPUs and vLLM 0.7.0**. Prepare the matching CANN, PyTorch/torch-npu, and vllm-ascend environment, then install:
 
 ```bash
+git clone https://github.com/skounputer/CGL.git
+cd CGL
 pip install -r requirements-npu.txt
 pip install tensorboard
 pip install -e . --no-deps
 ```
 
-Use `requirements-npu.txt` for the Ascend installation path. The inherited `[vllm]` package extra and CUDA dependency recipes target upstream CUDA installations. CUDA users should start with the [upstream installation instructions](README.verl.md) for this historical version, then use `DEVICE=cuda` with the CGL launcher.
+This repository includes the verl `0.4.1.dev` backbone. The Ascend installation uses `requirements-npu.txt`; the upstream `[vllm]` extra is intended for CUDA installations. Additional backend details are in the [training notes](docs/TRAINING.md#environment).
 
-Install **this checkout** as the `verl` package; do not separately install a current PyPI verl into the same environment.
+## Training
 
-## Data and training
-
-Obtain the dataset separately from [Regimes/androidcontrol-cl](https://huggingface.co/datasets/Regimes/androidcontrol-cl). For example, download its `parquet_convert/productivity_train.parquet` and `productivity_test.parquet` files. Weights and datasets are excluded from Git.
-
-The trainer expects verl-format Parquet rows containing:
-
-- `prompt`: chat messages, with the image placeholder expected by the model's processor.
-- `images`: multimodal images supported by the pinned verl data loader.
-- `data_source`: reward-source label.
-- `reward_model.ground_truth`: the target action parameter.
-- `extra_info.action_type` and `extra_info.answer`: action type and corrective target.
-
-Spatial answers use normalized point `[x,y]` or box `[left,top,right,bottom]` coordinates. Supported actions are `Click`, `Long_press`, `Scroll`, `Open`, `Input_text`, `Back`, `Home`, `Wait`, and `Finish`. Predictions use `<action>...</action>` tags. The released data schema and image loading should be checked in your training environment before launching a full run.
+Set the current task's data and the initial or previous-task Hugging Face checkpoint:
 
 ```bash
 export TRAIN_FILES=/path/to/productivity_train.parquet
 export VAL_FILES=/path/to/productivity_test.parquet
-export MODEL_PATH=/path/to/initial_sft_or_previous_task_hf_checkpoint
+export MODEL_PATH=/path/to/previous_task_hf_checkpoint
 
-# Inspect the command without starting Ray or allocating devices.
-DRY_RUN=1 bash scripts/train_cgl.sh
-
-# Source your Ascend vendor environment before launching.
 bash scripts/train_cgl.sh
 ```
 
-Paths above must be replaced with local files. Optional environment variables include `DEVICE`, `ENGINE`, `N_GPUS`, `TP_SIZE`, `OUTPUT_DIR`, and `EXPERIMENT_NAME`. Additional Hydra options may be passed at the end, for example:
+Use `DRY_RUN=1 bash scripts/train_cgl.sh` to inspect the command. For continual learning, train one task, [export its actor checkpoint](docs/TRAINING.md#data-and-training), and pass the resulting Hugging Face model as `MODEL_PATH` for the next task.
+
+### Ablations
+
+| Setting | Override passed to the training script |
+| --- | --- |
+| CGL | Default launcher configuration |
+| Direct gradient addition | `actor_rollout_ref.actor.sft_grpo_loss_add_linear=True` |
+| Fixed supervised weight | `actor_rollout_ref.actor.sft_grpo_mu=False` |
+| GRPO only | `actor_rollout_ref.actor.sft_grpo_loss=False` |
 
 ```bash
-# Smoke run: adjust batch sizes/device count for available hardware as needed.
-bash scripts/train_cgl.sh trainer.total_training_steps=1 trainer.save_freq=1
-
-# Direct gradient addition ablation.
-bash scripts/train_cgl.sh actor_rollout_ref.actor.sft_grpo_loss_add_linear=True
-
-# GRPO-only ablation.
-bash scripts/train_cgl.sh actor_rollout_ref.actor.sft_grpo_loss=False
+bash scripts/train_cgl.sh actor_rollout_ref.actor.sft_grpo_mu=False
 ```
 
-For continual training, finish one task, export its actor checkpoint to Hugging Face format, and pass that model as `MODEL_PATH` for the next task. The pinned upstream converter is included (not hardware-tested in this release):
+## Reproducibility
+
+The CPU checks cover CGL's routing, loss, gradient update, reward callback, and configuration:
 
 ```bash
-python scripts/legacy_model_merger.py merge --backend fsdp \
-  --local_dir outputs/cgl_androidcontrol/global_step_10/actor \
-  --target_dir models/task2_hf
-```
-
-Replace the checkpoint step/path with your completed task's checkpoint. The launcher trains one task per invocation. The supplied files did not contain authoritative task-order manifests or the complete evaluation program; those are still needed to reproduce every paper table.
-
-## Corrections relative to the supplied files
-
-The default `sft_grpo_routing=paper` selects a prompt group when **none of its rollouts reaches reward 2**. The supplied file instead used nonzero reward checks at tensor column zero. The release sums token rewards and groups by prompt UID, including after batch balancing. `CGL_ROUTING=legacy_nonzero` retains the old nonzero threshold with corrected indexing; it does not reproduce the original indexing bug.
-
-Other changes include a verl-compatible reward callback, safe coordinate parsing, corrected-response position IDs/right padding, exclusion of truncated demonstrations, correct dynamic microbatch sample counts, and retaining GRPO gradients when the SFT branch is disabled. See [migration details](docs/MIGRATION.md) for provenance and behavioral differences. These corrections may change training trajectories relative to an old experimental run.
-
-## CPU checks
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
 pip install -r requirements-cgl-test.txt
 pytest -q tests/cgl
-python -m compileall -q verl
-bash -n scripts/train_cgl.sh
 ```
 
-These checks cover algorithm kernels, reward parsing, and corrected-batch assembly. They do not validate device kernels, distributed execution, model/data compatibility, or reproduce training scores. Inherited upstream tests under other directories may require additional dependencies, models, and hardware.
+Full NPU training revalidation is pending for this release. Initial SFT, model weights, and the complete evaluation pipeline are not included. See [validation details](docs/VALIDATION.md) and [implementation changes](docs/MIGRATION.md).
 
-## Citation and license
+## Citation
+
+If you use CGL or AndroidControl-CL, please cite:
 
 ```bibtex
 @InProceedings{Yao_2026_CVPR,
@@ -118,4 +112,6 @@ These checks cover algorithm kernels, reward parsing, and corrected-batch assemb
 }
 ```
 
-The code is distributed under [Apache-2.0](LICENSE), retaining upstream copyright and [notices](Notice.txt). Please also cite [verl / HybridFlow](https://github.com/verl-project/verl) when using its training infrastructure. Dataset and model licenses are separate from the code license.
+## Acknowledgements and License
+
+Our training infrastructure builds on [verl / HybridFlow](https://github.com/verl-project/verl). The code is released under [Apache-2.0](LICENSE), with upstream [notices](Notice.txt) retained. Dataset and model licenses apply separately.
